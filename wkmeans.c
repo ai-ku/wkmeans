@@ -135,7 +135,7 @@ bool remove_identical_clusters(PREC *CX, BOUND_PREC *cluster_distance, const PRE
 					if (c[n] != j) continue;
 					remove_point_from_cluster(c[n],CX,px,cluster_count,dim);
 					c[n] = i;
-					add_point_to_cluster(c[i],CX,px,cluster_count,dim);
+					add_point_to_cluster(i,CX,px,cluster_count,dim);
 				}
 			}
 		}
