@@ -567,11 +567,12 @@ PREC kmeans(PREC *CX,const PREC *X,unsigned int *assignment,unsigned int dim,uns
   /*
    * No starting point is given, generate a new one
    */
-  if (CX==NULL)
+  //if (CX==NULL)
+  if (1)			// Always randomly initialize
   {
       unsigned int *order = (unsigned int*)malloc(npts*sizeof(unsigned int));
 
-      CX = (PREC*)calloc(nclus*dim,sizeof(PREC));
+      if (CX == NULL) CX = (PREC*)calloc(nclus*dim,sizeof(PREC));
       /* generate new starting point */
       randperm(order,npts);
       for (unsigned int i=0; i<nclus; i++)
