@@ -303,7 +303,7 @@ unsigned int assign_point_to_cluster(unsigned int point_ind, const PREC *px, con
 }
 
 
-PREC kmeans_run(PREC *CX,const PREC *X,unsigned int *c,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter)
+PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter)
 {
 	PREC *tCX = (PREC *)calloc(nclus * dim, sizeof(PREC));
 	if (tCX==NULL)	kmeans_error((char*)"Failed to allocate mem for Cluster points");
@@ -428,7 +428,7 @@ PREC kmeans_run(PREC *CX,const PREC *X,unsigned int *c,unsigned int dim,unsigned
 		{
 			if (CN[j]>0) continue;
 			unsigned int *rperm = (unsigned int*)malloc(npts*sizeof(unsigned int));
-			if (cluster_changed==NULL)	kmeans_error((char*)"Failed to allocate mem for permutation");
+			if (rperm==NULL)	kmeans_error((char*)"Failed to allocate mem for permutation");
 
 			randperm(rperm,npts);
 			unsigned int i = 0; 
@@ -542,7 +542,7 @@ PREC kmeans_run(PREC *CX,const PREC *X,unsigned int *c,unsigned int dim,unsigned
 	return(sse);
 }
 
-PREC kmeans(PREC *CX,const PREC *X,unsigned int *assignment,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter, unsigned int restarts)
+PREC kmeans(PREC *CX,const PREC *X,const PREC *W, unsigned int *assignment,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter, unsigned int restarts)
 {
 
   if (npts < nclus)
@@ -582,7 +582,7 @@ PREC kmeans(PREC *CX,const PREC *X,unsigned int *assignment,unsigned int dim,uns
 		
   }
   assert(CX != NULL);
-  PREC sse = kmeans_run(CX,X,assignment,dim,npts,nclus,maxiter);
+  PREC sse = kmeans_run(CX,X,W,assignment,dim,npts,nclus,maxiter);
 
   unsigned int res = restarts;
   if (res>0)
@@ -604,7 +604,7 @@ PREC kmeans(PREC *CX,const PREC *X,unsigned int *assignment,unsigned int dim,uns
 			  for (unsigned int k=0; k<dim; k++ )
 				  CX[(i*dim)+k] = X[order[i]*dim+k];
 		
-		  sse = kmeans_run(CX,X,assignment,dim,npts,nclus,maxiter);
+		  sse = kmeans_run(CX,X,W,assignment,dim,npts,nclus,maxiter);
 		  if (sse<minsse)
 		  {
 #if KMEANS_VERBOSE>1
