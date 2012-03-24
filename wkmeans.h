@@ -31,7 +31,7 @@
 #define BOUND_EPS 1e-6
 
 extern "C"{
-PREC kmeans(PREC *CXp,const PREC *X,const PREC *W,unsigned int *c,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter, unsigned int nr_restarts);
+PREC kmeans(PREC *CXp,const PREC *X, PREC *W,unsigned int *c,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter, unsigned int nr_restarts);
 }
 PREC compute_distance(const PREC *vec1, const PREC *vec2, const unsigned int dim);
 unsigned int assign_point_to_cluster_ordinary(const PREC *px, const PREC *CX, unsigned int dim,unsigned int nclus);

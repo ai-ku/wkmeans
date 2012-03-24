@@ -53,21 +53,24 @@ PREC compute_distance(const PREC *vec1, const PREC *vec2, const unsigned int dim
 	return d;
 }
 
-PREC compute_sserror(const PREC *CX, const PREC *X, const unsigned int *c,unsigned int dim, unsigned int npts)
+PREC compute_sserror(const PREC *CX, const PREC *X, const PREC *W, const unsigned int *c,unsigned int dim, unsigned int npts)
 {
+        PREC sum = 0.0;
 	PREC sse = 0.0;
 	const PREC *px = X;
 	for ( unsigned int i=0 ; i<npts ; i++,px+=dim)
 	{
 		const PREC *pcx = CX+c[i]*dim;
 		PREC d = compute_distance(px,pcx,dim);
-		sse += d*d;	// DY: we just took sqrt, this is inefficient, need sqdist fn
+		sse += W[i]*d*d;	// DY: we just took sqrt, this is inefficient, need sqdist fn
+		sum += W[i];
 	}
+	sse /= sum;
 	assert(sse>=0.0);
 	return(sse);
 }
 
-void remove_point_from_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, unsigned int *nr_points, unsigned int dim)
+void remove_point_from_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, PREC pw, unsigned int *nr_points, PREC *CW, unsigned int dim)
 {
 	PREC *pcx = CX + cluster_ind*dim; // DY: centroid coordinates
 
@@ -77,21 +80,23 @@ void remove_point_from_cluster(unsigned int cluster_ind, PREC *CX, const PREC *p
 		for ( unsigned int k=0 ; k<dim ; k++ )
 			pcx[k] = 0.0; // DY: why zero out the coordinates?  to compute new average?
 		nr_points[cluster_ind]=0;
+		CW[cluster_ind] = 0;
 	}
 	else
 	{
 		/* pgehler: remove PREC here */
-		PREC nr_old,nr_new; 
-		nr_old = (PREC)nr_points[cluster_ind]; // DY: this could be sum of weights
+		PREC cw_old,cw_new; 
+		cw_old = CW[cluster_ind]; // DY: this could be sum of weights
 		(nr_points[cluster_ind])--;	       // DY: subtract point weight
-		nr_new = (PREC)nr_points[cluster_ind]; // DY: this should be the new sum of weights
+		CW[cluster_ind] -= pw;
+		cw_new = CW[cluster_ind]; // DY: this should be the new sum of weights
 
 		for ( unsigned int k=0 ; k<dim ; k++ )
-			pcx[k] = (nr_old*pcx[k] - px[k])/nr_new; // DY: subtract the weight of point times its coord.
+			pcx[k] = (cw_old*pcx[k] - pw*px[k])/cw_new; // DY: subtract the weight of point times its coord.
 	}
 }
 
-void add_point_to_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, unsigned int *nr_points, unsigned int dim)
+void add_point_to_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, PREC pw, unsigned int *nr_points, PREC *CW, unsigned int dim)
 {
 
 	PREC *pcx = CX + cluster_ind*dim;
@@ -100,22 +105,24 @@ void add_point_to_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, un
 	if (nr_points[cluster_ind]==0)
 	{		
 		(nr_points[cluster_ind])++; // DY: this should be incremented by weight of point
+		CW[cluster_ind] = pw;
 		for ( unsigned int k=0 ; k<dim ; k++ )
 			pcx[k] = px[k]; // DY: see, no need to zero out an empty cluster.
 	}
 	else
 	{
-/* remove PREC here */
-		PREC nr_old = (PREC)(nr_points[cluster_ind]); // DY: add weights same as the remove point code
+	  /* remove PREC here */
+		PREC cw_old = CW[cluster_ind]; // DY: add weights same as the remove point code
 		(nr_points[cluster_ind])++;
-		PREC nr_new = (PREC)(nr_points[cluster_ind]);
+		CW[cluster_ind] += pw;
+		PREC cw_new = CW[cluster_ind];
 		for ( unsigned int k=0 ; k<dim ; k++ )
-			pcx[k] = (nr_old*pcx[k]+px[k])/nr_new;
+			pcx[k] = (cw_old*pcx[k]+pw*px[k])/cw_new;
 	}
 }
 
 
-bool remove_identical_clusters(PREC *CX, BOUND_PREC *cluster_distance, const PREC *X, unsigned int *cluster_count, unsigned int *c, unsigned int dim, unsigned int nclus, unsigned int npts)
+bool remove_identical_clusters(PREC *CX, BOUND_PREC *cluster_distance, const PREC *X, const PREC *W, unsigned int *cluster_count, PREC *CW, unsigned int *c, unsigned int dim, unsigned int nclus, unsigned int npts)
 {
 	bool stat = false;
 	for ( unsigned int i=0 ; i<(nclus-1) ; i++ )
@@ -133,9 +140,9 @@ bool remove_identical_clusters(PREC *CX, BOUND_PREC *cluster_distance, const PRE
 				for ( unsigned int n=0 ; n<npts ; n++,px+=dim )
 				{
 					if (c[n] != j) continue; // DY: c[n] is uninitialized at this point!!!
-					remove_point_from_cluster(c[n],CX,px,cluster_count,dim); // DY: say j instead of c[n]
+					remove_point_from_cluster(j,CX,px,W[n],cluster_count,CW,dim); // DY: say j instead of c[n]
 					c[n] = i;
-					add_point_to_cluster(i,CX,px,cluster_count,dim);
+					add_point_to_cluster(i,CX,px,W[n],cluster_count,CW,dim);
 				}
 			}
 		}
@@ -312,6 +319,10 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 	unsigned int *CN = (unsigned int *) calloc(nclus, sizeof(unsigned int)); 
 	if (CN==NULL)	kmeans_error((char*)"Failed to allocate mem for assignment");
 	
+	/* total weight of points in cluster */
+	PREC *CW = (PREC *) calloc(nclus, sizeof(PREC)); 
+	if (CW==NULL)	kmeans_error((char*)"Failed to allocate mem for cluster weights");
+	
 	/* old assignement of points to cluster */
 	unsigned int *old_c = (unsigned int *) malloc(npts* sizeof(unsigned int));
 	if (old_c==NULL)	kmeans_error((char*)"Failed to allocate mem for temp assignment");
@@ -370,7 +381,7 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 		compute_cluster_distances(cl_dist, s, CX, dim,nclus, cluster_changed);
 		
 		/* assign all points from identical clusters to the first occurence of that cluster */
-		remove_identical_clusters(CX, cl_dist, X, CN, c, dim, nclus, npts);
+		remove_identical_clusters(CX, cl_dist, X, W, CN, CW, c, dim, nclus, npts);
 			
 		/* find nearest cluster center */
 		if (iteration == 0)
@@ -380,7 +391,7 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 		  for ( unsigned int i=0 ; i<npts ; i++,px+=dim)
 			{
 				c[i] = init_point_to_cluster(i,px,CX,dim,nclus,mindist,low_b,cl_dist);
-				add_point_to_cluster(c[i],tCX,px,CN,dim);
+				add_point_to_cluster(c[i],tCX,px,W[i],CN,CW,dim);
 			}
 			nchanged = npts;
 		}
@@ -402,7 +413,8 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 					unsigned int tmp = assign_point_to_cluster_ordinary(px,CX,dim,nclus);
 					if (tmp != c[i])
 					{
-						double d1 = compute_distance(px,CX+(tmp*dim),dim);
+					  printf("Found different cluster assignment.\n");
+		                    		double d1 = compute_distance(px,CX+(tmp*dim),dim);
 						double d2 = compute_distance(px,CX+(c[i]*dim),dim);
 						assert( (d1>d2)?((d1-d2)<BOUND_EPS):((d2-d1)<BOUND_EPS) );
 					}
@@ -416,8 +428,8 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 				cluster_changed[c[i]] = true;
 				cluster_changed[old_c[i]] = true;
 
-				remove_point_from_cluster(old_c[i],tCX,px,CN,dim);
-				add_point_to_cluster(c[i],tCX,px,CN,dim);
+				remove_point_from_cluster(old_c[i],tCX,px,W[i],CN,CW,dim);
+				add_point_to_cluster(c[i],tCX,px,W[i],CN,CW,dim);
 			}
 
 		}
@@ -426,7 +438,7 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 		/* fill up empty clusters */
 		for ( unsigned int j=0 ; j<nclus ; j++)
 		{
-			if (CN[j]>0) continue;
+			if (CN[j]>0) continue; // DY: so j is an empty cluster
 			unsigned int *rperm = (unsigned int*)malloc(npts*sizeof(unsigned int));
 			if (rperm==NULL)	kmeans_error((char*)"Failed to allocate mem for permutation");
 
@@ -434,16 +446,16 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 			unsigned int i = 0; 
 			while (rperm[i]<npts && CN[c[rperm[i]]]<2) i++;
 			if (i==npts)continue;
-			i = rperm[i];
+			i = rperm[i]; // DY: i is a point from a cluster with more than one point
 #if KMEANS_VERBOSE>0
 			printf("empty cluster [%d], filling it with point [%d]\n",j,i);
 #endif
-			cluster_changed[c[rperm[i]]] = true;
+			cluster_changed[c[i]] = true; // DY: bug this should be c[i], we already did i=rperm[i]!
 			cluster_changed[j] = true;
-			const PREC *px = X + i*dim;
-			remove_point_from_cluster(c[i],tCX,px,CN,dim);
+			const PREC *px = X + i*dim; // DY: px is the coordinates for the ith point
+			remove_point_from_cluster(c[i],tCX,px,W[i],CN,CW,dim);
 			c[i] = j;
-			add_point_to_cluster(j,tCX,px,CN,dim);
+			add_point_to_cluster(j,tCX,px,W[i],CN,CW,dim);
 			/* void the bounds */
 			s[j] = (BOUND_PREC)0.0;
 			mindist[i] = 0.0;
@@ -489,7 +501,7 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 		memcpy(old_c,c,npts*sizeof(unsigned int));
 
 #if KMEANS_VERBOSE>0
-		PREC sse = compute_sserror(CX,X,c,dim,npts);
+		PREC sse = compute_sserror(CX,X,W,c,dim,npts);
 		printf("iteration %4d, #(changed points): %4d, sse: %4.2f\n",(int)iteration,(int)nchanged,sse);
 #endif
 
@@ -523,7 +535,7 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 		for ( unsigned int i=0 ; i<npts ; i++,px+=dim)
 			c[i] = assign_point_to_cluster_ordinary(px,CX,dim,nclus);
 	}
-	PREC sse = compute_sserror(CX,X,c,dim,npts);
+	PREC sse = compute_sserror(CX,X,W,c,dim,npts);
 
 #if KMEANS_VERBOSE>0
 	printf("iteration %4d, #(changed points): %4d, sse: %4.2f\n",(int)iteration,(int)nchanged,sse);
@@ -537,12 +549,13 @@ PREC kmeans_run(PREC *CX,const PREC *X,const PREC *W,unsigned int *c,unsigned in
 	free(cl_dist);
 	free(tCX);
 	free(CN);
+	free(CW);
 	free(old_c);
 
 	return(sse);
 }
 
-PREC kmeans(PREC *CX,const PREC *X,const PREC *W, unsigned int *assignment,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter, unsigned int restarts)
+PREC kmeans(PREC *CX,const PREC *X, PREC *W, unsigned int *assignment,unsigned int dim,unsigned int npts,unsigned int nclus,unsigned int maxiter, unsigned int restarts)
 {
 
   if (npts < nclus)
@@ -582,6 +595,12 @@ PREC kmeans(PREC *CX,const PREC *X,const PREC *W, unsigned int *assignment,unsig
 		
   }
   assert(CX != NULL);
+  
+  if (W == NULL) {		// DY: If no weights specified initialize all weigths to 1.
+    W = (PREC*) malloc(npts*sizeof(PREC));
+    for (int i = 0; i < npts; i++) 
+      W[i] = 1.0;
+  }
   PREC sse = kmeans_run(CX,X,W,assignment,dim,npts,nclus,maxiter);
 
   unsigned int res = restarts;
