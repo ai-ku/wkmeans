@@ -1,5 +1,20 @@
-const char *rcsid = "$Id";
-const char *usage = "wkmeans [options] < input > output\n";
+/** wkmeans: k-means algorithm with (optional) instance weights.
+ *  Based on mpi_kmeans-1.5 by Peter Gehler.
+ *  Based on C. Elkan. Using the triangle inequality to accelerate kMeans. ICML 2003.
+ *  Initialization based on Arthur, D. and Vassilvitskii,
+ *  S. (2007). K-means++: the advantages of careful seeding.
+ *  Proceedings of the eighteenth annual ACM-SIAM symposium on Discrete
+ *  algorithms. pp. 1027-1035. 
+ *  Last modified by Deniz Yuret and Enis Sert, 25-Mar-2012.
+ */
+
+const char *rcsid = "$Id$";
+const char *usage = "wkmeans [options] < input > output\n"
+  "-k number of clusters (default 2)\n"
+  "-r number of restarts (default 0)\n"
+  "-s random seed\n"
+  "-w first column in the input file is instance weight\n"
+  "-v verbose output\n";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +31,7 @@ unsigned int saved_two=0, saved_three_one=0, saved_three_two=0, saved_three_thre
 
 int VERBOSE = 0;
 
+
 int main(int argc, char **argv) {
   int nof_clusters = 2;
   int nof_restarts = 0;
@@ -27,7 +43,6 @@ int main(int argc, char **argv) {
     switch(opt) {
     case 'k': nof_clusters = atoi(optarg); break;
     case 'r': nof_restarts = atoi(optarg); break;
-    case 'i': maxiter = atoi(optarg); break;
     case 's': seed = atoi(optarg); break;
     case 'w': weights = 1; break;
     case 'v': VERBOSE = 1; break;
@@ -122,30 +137,13 @@ PREC kmeans(PREC *CX, const PREC *X, PREC *W, unsigned int *assignment, unsigned
       exit(-1);
     }
 
-  /*
-   * No starting point is given, generate a new one
-   */
-  //if (CX==NULL)
-  if (1)			// Always randomly initialize
-    {
-      unsigned int *order = (unsigned int*)malloc(npts*sizeof(unsigned int));
-
-      if (CX == NULL) CX = (PREC*)calloc(nclus*dim, sizeof(PREC));
-      /* generate new starting point */
-      randperm(order, npts);
-      for (unsigned int i=0; i<nclus; i++)
-	for ( unsigned int k=0; k<dim; k++ )
-	  CX[(i*dim)+k] = X[order[i]*dim+k];
-      free(order);
-		
-    }
-  assert(CX != NULL);
-  
   if (W == NULL) {		// DY: If no weights specified initialize all weigths to 1.
     W = (PREC*) malloc(npts*sizeof(PREC));
     for (int i = 0; i < npts; i++) 
       W[i] = 1.0;
   }
+
+  kpp(CX, X, W, dim, npts, nclus);
   PREC rms = kmeans_run(CX, X, W, assignment, dim, npts, nclus, maxiter);
 
   unsigned int res = restarts;
@@ -162,12 +160,7 @@ PREC kmeans(PREC *CX, const PREC *X, PREC *W, unsigned int *assignment, unsigned
       while (res>0)
 	{
 
-	  /* generate new starting point */
-	  randperm(order, npts);
-	  for (unsigned int i=0; i<nclus; i++)
-	    for (unsigned int k=0; k<dim; k++ )
-	      CX[(i*dim)+k] = X[order[i]*dim+k];
-		
+	  kpp(CX, X, W, dim, npts, nclus);
 	  rms = kmeans_run(CX, X, W, assignment, dim, npts, nclus, maxiter);
 	  if (rms<minrms)
 	    {
@@ -741,3 +734,96 @@ PREC kmeans_run(PREC *CX, const PREC *X, const PREC *W, unsigned int *c, unsigne
 }
 
 
+/* Enis: my functions begins */
+void furthest_first (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus)
+{
+  int max_i;
+  double *distances, max_d;
+
+  distances = (double*) malloc(npts * sizeof(*distances));
+  for (int i = 0; i < npts; i++) distances[i] = 10e8;
+
+  for (int i = 1; i < nclus; i++) {
+    double *a = CX + (i - 1) * dim;
+    max_d = 0;
+    max_i = 0;
+    for (int j = 0; j < npts; j++) {
+      double d = compute_distance(a, X + j * dim, dim);
+      if (d < distances[j])
+	distances[j] = d;
+      if (max_d < distances[j]) {
+	max_d = distances[j];
+	max_i = j;
+      }
+    }
+
+    a = CX + i * dim;
+    const double *b = X + max_i * dim;
+    for (int j = 0; j < dim; j++) a[j] = b[j];
+  }
+
+  free(distances);
+}
+
+void furthest_first_sample (double *CX, const double *X, double *W, unsigned int dim, unsigned int npts, unsigned int nclus)
+{
+  int ind;
+  double *distances, r;
+
+  distances = (double*) malloc(npts * sizeof(*distances));
+
+  for (int i = 0; i < npts; i++) distances[i] = PREC_MAX;
+
+  for (int i = 1; i < nclus; i++) {
+    double *a = CX + (i - 1) * dim;
+    for (int j = 0; j < npts; j++) {
+      double d = compute_distance(a, X + j * dim, dim);
+      if (d < distances[j])
+	distances[j] = d;
+    }
+
+    ind = 0;
+    double sum = W[0] * distances[0] * distances[0];
+    for (int j = 1; j < npts; j++) {
+      double d = W[j] * distances[j] * distances[j];
+      sum += d;
+      r = ((double)rand() / RAND_MAX) * sum;
+      if (r < d) ind = j;
+    }
+
+    a = CX + i * dim;
+    const double *b = X + ind * dim;
+    for (int j = 0; j < dim; j++) a[j] = b[j];
+  }
+
+  free(distances);
+}
+
+void rand_ff (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus)
+{
+  int r = rand() % npts;
+  const double *a = X + r * dim;
+  for (int i = 0; i < dim; i++) CX[i] = a[i];
+
+  furthest_first(CX, X, dim, npts, nclus);
+}
+
+void kpp (double *CX, const double *X, double *W, unsigned int dim, unsigned int npts, unsigned int nclus)
+{
+  int r = rand() % npts;
+  const double *a = X + r * dim;
+  for (int i = 0; i < dim; i++) CX[i] = a[i];
+
+  furthest_first_sample(CX, X, W, dim, npts, nclus);  
+}
+
+void random (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus)
+{
+  unsigned int *order = (unsigned int*)malloc(npts*sizeof(unsigned int));
+  randperm(order, npts);
+  for (unsigned int i=0; i<nclus; i++)
+    for ( unsigned int k=0; k<dim; k++ )
+      CX[(i*dim)+k] = X[order[i]*dim+k];
+  free(order);
+}
+/* Enis: my functions ends */
