@@ -54,7 +54,7 @@ void furthest_first (double *CX, const double *X, unsigned int dim, unsigned int
 void furthest_first_sample (double *CX, const double *X, double *W, unsigned int dim, unsigned int npts, unsigned int nclus);
 void rand_ff (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus);
 void kpp (double *CX, const double *X, double *W, unsigned int dim, unsigned int npts, unsigned int nclus);
-void random (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus);
+void random_init (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus);
 
 #endif
 

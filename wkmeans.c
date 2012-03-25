@@ -13,11 +13,13 @@ const char *usage = "wkmeans [options] < input > output\n"
   "-k number of clusters (default 2)\n"
   "-r number of restarts (default 0)\n"
   "-s random seed\n"
-  "-w first column in the input file is instance weight\n"
+  "-l input file contains labels\n"
+  "-w input file contains instance weights\n"
   "-v verbose output\n";
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <float.h>
 #include <memory.h>
 #include <math.h>
@@ -37,13 +39,15 @@ int main(int argc, char **argv) {
   int nof_restarts = 0;
   int maxiter = 0;
   int weights = 0;
+  int labels = 0;
   unsigned int seed = 0;
   int opt;
-  while((opt = getopt(argc, argv, "k:r:i:s:wvh")) != -1) {
+  while((opt = getopt(argc, argv, "k:r:i:s:lwvh")) != -1) {
     switch(opt) {
     case 'k': nof_clusters = atoi(optarg); break;
     case 'r': nof_restarts = atoi(optarg); break;
     case 's': seed = atoi(optarg); break;
+    case 'l': labels = 1; break;
     case 'w': weights = 1; break;
     case 'v': VERBOSE = 1; break;
     default: fputs(usage, stderr); exit(0);
@@ -53,6 +57,7 @@ int main(int argc, char **argv) {
 
   PREC *X = NULL;
   PREC *W = NULL;
+  char **L = NULL;
   PREC *CX = NULL;
   unsigned int *assignment = NULL;
   unsigned int dims = 0;
@@ -66,36 +71,50 @@ int main(int argc, char **argv) {
   int iw = 0;
   W = malloc(nw * sizeof(PREC));
 
+  int nl = BUF;
+  int il = 0;
+  L = malloc(nl * sizeof(char*));
+
   char buf[BUF];
   int row = 0;
   while(fgets(buf, BUF, stdin) != NULL) {
     int col = 0;
     for (char *ptr = strtok(buf, " \t\n\r\f\v"); ptr != NULL; ptr = strtok(NULL, " \t\n\r\f\v")) {
       PREC x = atof(ptr);
-      if (col++ == 0) {
-	if (weights) W[iw++] = x;
-	else W[iw++] = 1, X[ix++] = x;
+      if (labels && il <= row) {
+	L[il++] = strdup(ptr);
+      } else if (weights && iw <= row) {
+	W[iw++] = x;
       } else {
 	X[ix++] = x;
+	if (!weights && iw <= row) W[iw++] = 1;
       }
       if (ix == nx) {
 	nx *= SQRT2;
 	X = realloc(X, nx * sizeof(PREC));
       }
+      col++;
     }
-    if (row++ == 0) {
+    if (row == 0) {
       dims = ix;
     }
     if (iw == nw) {
       nw *= SQRT2;
       W = realloc(W, nw * sizeof(PREC));
     }
+    if (il == nl) {
+      nl *= SQRT2;
+      L = realloc(L, nl * sizeof(char*));
+    }
+    row++;
   }
   nof_points = iw;
   
   if (VERBOSE) {
-    fprintf(stderr, "Read %d points in %d dimensions %s\n", 
-	    nof_points, dims, weights ? "with weights" : "");
+    fprintf(stderr, "Read %d points in %d dimensions%s%s.\n", 
+	    nof_points, dims, 
+	    (labels ? " with labels" : ""),
+	    (weights ? " with weights" : ""));
   }
 
   assignment = calloc(nof_points, sizeof(unsigned int));
@@ -103,6 +122,10 @@ int main(int argc, char **argv) {
   PREC rms = kmeans(CX, X, W, assignment, dims, nof_points, nof_clusters, maxiter, nof_restarts);
 
   for (int i = 0; i < nof_points; i++) {
+    if (labels) {
+      printf("%s\t", L[i]);
+      free(L[i]);
+    }
     printf("%d\n", assignment[i]);
   }
 
@@ -110,6 +133,7 @@ int main(int argc, char **argv) {
 
   free(X);
   free(W);
+  free(L);
   free(assignment);
   free(CX);
 }
@@ -817,7 +841,7 @@ void kpp (double *CX, const double *X, double *W, unsigned int dim, unsigned int
   furthest_first_sample(CX, X, W, dim, npts, nclus);  
 }
 
-void random (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus)
+void random_init (double *CX, const double *X, unsigned int dim, unsigned int npts, unsigned int nclus)
 {
   unsigned int *order = (unsigned int*)malloc(npts*sizeof(unsigned int));
   randperm(order, npts);
