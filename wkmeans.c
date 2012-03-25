@@ -145,8 +145,9 @@ PREC kmeans(PREC *CX, const PREC *X, PREC *W, unsigned int *assignment, unsigned
 
   kpp(CX, X, W, dim, npts, nclus);
   PREC rms = kmeans_run(CX, X, W, assignment, dim, npts, nclus, maxiter);
+  if (VERBOSE) fprintf(stderr, "Iteration %d/%d rms: %f\n", 1, restarts, rms);
 
-  unsigned int res = restarts;
+  unsigned int res = restarts - 1;
   if (res>0)
     {
       PREC minrms = rms;
@@ -162,11 +163,10 @@ PREC kmeans(PREC *CX, const PREC *X, PREC *W, unsigned int *assignment, unsigned
 
 	  kpp(CX, X, W, dim, npts, nclus);
 	  rms = kmeans_run(CX, X, W, assignment, dim, npts, nclus, maxiter);
+	  if (VERBOSE) fprintf(stderr, "Iteration %d/%d rms: %f\n", 1+restarts-res, restarts, rms);
 	  if (rms<minrms)
 	    {
-#if KMEANS_VERBOSE>1
-	      printf("found a better clustering with rms = %g\n", rms);
-#endif
+	      if (VERBOSE) fprintf(stderr, "Updating best clustering rms = %g\n", rms);
 	      minrms = rms;
 	      memcpy(bestCX, CX, dim*nclus*sizeof(PREC));
 	      memcpy(bestassignment, assignment, npts*sizeof(unsigned int));
@@ -715,9 +715,9 @@ PREC kmeans_run(PREC *CX, const PREC *X, const PREC *W, unsigned int *c, unsigne
     }
   PREC rms = compute_rms(CX, X, W, c, dim, npts);
 
-  if (VERBOSE) {
+#if KMEANS_VERBOSE>0
     fprintf(stderr, "iteration %4d, #(changed points): %4d, rms: %f\n", (int)iteration, (int)nchanged, rms);
-  }
+#endif
 
   if(low_b) free(low_b);
   free(cluster_changed);
