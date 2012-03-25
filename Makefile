@@ -1,9 +1,12 @@
 CC=gcc
-CFLAGS=-O3 -D_XOPEN_SOURCE -Wall -std=c99 -I. `pkg-config --cflags glib-2.0`
-LIBS=`pkg-config --libs glib-2.0` -lm -lgsl -lgslcblas
+CFLAGS=-O3 -D_GNU_SOURCE -Wall -std=gnu99
+LIBS=-lm
 
 wkmeans: wkmeans.o
 	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
 
 wkmeans.o: wkmeans.c wkmeans.h
 	$(CC) -c $(CFLAGS) $< -o $@
+
+clean:
+	rm wkmeans.o wkmeans
