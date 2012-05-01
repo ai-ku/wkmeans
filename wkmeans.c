@@ -120,6 +120,7 @@ int main(int argc, char **argv) {
   assignment = calloc(nof_points, sizeof(unsigned int));
   CX = calloc(dims * nof_clusters, sizeof(PREC));
   PREC rms = kmeans(CX, X, W, assignment, dims, nof_points, nof_clusters, maxiter, nof_restarts);
+  PREC rms2 = compute_rms2(CX, dims, nof_clusters);
 
   for (int i = 0; i < nof_points; i++) {
     if (labels) {
@@ -129,7 +130,7 @@ int main(int argc, char **argv) {
     printf("%d\n", assignment[i]);
   }
 
-  fprintf(stderr, "%f\n", rms);
+  fprintf(stderr, "%f\t%f\n", rms, rms2);
 
   free(X);
   free(W);
@@ -254,6 +255,8 @@ PREC compute_distance(const PREC *vec1, const PREC *vec2, const unsigned int dim
   return d;
 }
 
+/* This computes the within cluster root-mean-squared distance */
+
 PREC compute_rms(const PREC *CX, const PREC *X, const PREC *W, const unsigned int *c, unsigned int dim, unsigned int npts)
 {
   PREC sum = 0.0;
@@ -270,6 +273,26 @@ PREC compute_rms(const PREC *CX, const PREC *X, const PREC *W, const unsigned in
   rms = sqrt(rms);
   assert(rms>=0.0);
   return(rms);
+}
+
+/* This computes the between cluster root-mean-squared distance */
+
+PREC compute_rms2(const PREC *CX, unsigned int dim, unsigned int ncls)
+{
+  int cnt = 0;
+  PREC rms = 0.0;
+  for (int i = ncls - 1; i > 0; i--) {
+    for (int j = i - 1; j >= 0; j--) {
+      const PREC *pc1 = CX + i * dim;
+      const PREC *pc2 = CX + j * dim;
+      PREC d = compute_distance(pc1, pc2, dim);
+      rms += d * d;
+      cnt++;
+    }
+  }
+  rms /= cnt;
+  rms = sqrt(rms);
+  return (rms);
 }
 
 void remove_point_from_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, PREC pw, unsigned int *nr_points, PREC *CW, unsigned int dim)

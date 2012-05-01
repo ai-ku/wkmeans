@@ -42,6 +42,7 @@ int comp_randperm (const void * a, const void * b);
 void randperm(unsigned int *order, unsigned int npoints);
 PREC compute_distance(const PREC *vec1, const PREC *vec2, const unsigned int dim);
 PREC compute_rms(const PREC *CX, const PREC *X, const PREC *W, const unsigned int *c, unsigned int dim, unsigned int npts);
+PREC compute_rms2(const PREC *CX, unsigned int dim, unsigned int ncls);
 void remove_point_from_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, PREC pw, unsigned int *nr_points, PREC *CW, unsigned int dim);
 void add_point_to_cluster(unsigned int cluster_ind, PREC *CX, const PREC *px, PREC pw, unsigned int *nr_points, PREC *CW, unsigned int dim);
 bool remove_identical_clusters(PREC *CX, BOUND_PREC *cluster_distance, const PREC *X, const PREC *W, unsigned int *cluster_count, PREC *CW, unsigned int *c, unsigned int dim, unsigned int nclus, unsigned int npts);
