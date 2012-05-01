@@ -130,7 +130,8 @@ int main(int argc, char **argv) {
     printf("%d\n", assignment[i]);
   }
 
-  fprintf(stderr, "%f\t%f\n", rms, rms2);
+  //fprintf(stderr, "%f\t%f\n", rms, rms2);
+  fprintf(stderr, "%f\n", rms);
 
   free(X);
   free(W);
