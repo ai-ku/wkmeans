@@ -120,7 +120,6 @@ int main(int argc, char **argv) {
   assignment = calloc(nof_points, sizeof(unsigned int));
   CX = calloc(dims * nof_clusters, sizeof(PREC));
   PREC rms = kmeans(CX, X, W, assignment, dims, nof_points, nof_clusters, maxiter, nof_restarts);
-  PREC rms2 = compute_rms2(CX, dims, nof_clusters);
 
   for (int i = 0; i < nof_points; i++) {
     if (labels) {
@@ -130,7 +129,6 @@ int main(int argc, char **argv) {
     printf("%d\n", assignment[i]);
   }
 
-  //fprintf(stderr, "%f\t%f\n", rms, rms2);
   fprintf(stderr, "%f\n", rms);
 
   free(X);
@@ -256,9 +254,15 @@ PREC compute_distance(const PREC *vec1, const PREC *vec2, const unsigned int dim
   return d;
 }
 
+PREC compute_rms(const PREC *CX, const PREC *X, const PREC *W, const unsigned int *c, unsigned int dim, unsigned int npts, unsigned int ncls) {
+  PREC rms1 = compute_rms1(CX, X, W, c, dim, npts);
+  PREC rms2 = compute_rms2(CX, dim, ncls);
+  return (rms1 / rms2);
+}
+
 /* This computes the within cluster root-mean-squared distance */
 
-PREC compute_rms(const PREC *CX, const PREC *X, const PREC *W, const unsigned int *c, unsigned int dim, unsigned int npts)
+PREC compute_rms1(const PREC *CX, const PREC *X, const PREC *W, const unsigned int *c, unsigned int dim, unsigned int npts)
 {
   PREC sum = 0.0;
   PREC rms = 0.0;
@@ -727,8 +731,8 @@ PREC kmeans_run(PREC *CX, const PREC *X, const PREC *W, unsigned int *c, unsigne
       memcpy(old_c, c, npts*sizeof(unsigned int));
 
 #if KMEANS_VERBOSE>0
-	PREC rms = compute_rms(CX, X, W, c, dim, npts);
-	fprintf(stderr, "iteration %4d, #(changed points): %4d, rms: %4.2f\n", (int)iteration, (int)nchanged, rms);
+      PREC rms = compute_rms(CX, X, W, c, dim, npts, nclus);
+      fprintf(stderr, "iteration %4d, #(changed points): %4d, rms: %4.2f\n", (int)iteration, (int)nchanged, rms);
 #endif
 
 #if KMEANS_VERBOSE>1
@@ -761,7 +765,7 @@ PREC kmeans_run(PREC *CX, const PREC *X, const PREC *W, unsigned int *c, unsigne
       for ( unsigned int i=0 ; i<npts ; i++, px+=dim)
 	c[i] = assign_point_to_cluster_ordinary(px, CX, dim, nclus);
     }
-  PREC rms = compute_rms(CX, X, W, c, dim, npts);
+  PREC rms = compute_rms(CX, X, W, c, dim, npts, nclus);
 
 #if KMEANS_VERBOSE>0
     fprintf(stderr, "iteration %4d, #(changed points): %4d, rms: %f\n", (int)iteration, (int)nchanged, rms);
