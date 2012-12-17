@@ -5,7 +5,7 @@
  *  S. (2007). K-means++: the advantages of careful seeding.
  *  Proceedings of the eighteenth annual ACM-SIAM symposium on Discrete
  *  algorithms. pp. 1027-1035. 
- *  Last modified by Deniz Yuret and Enis Sert, 25-Mar-2012.
+ *  Last modified by Deniz Yuret, Enis Sert and Mehmet Ali Yatbaz, 25-Mar-2012.
  */
 
 const char *rcsid = "$Id$";
@@ -15,6 +15,8 @@ const char *usage = "wkmeans [options] < input > output\n"
   "-s random seed\n"
   "-l input file contains labels\n"
   "-w input file contains instance weights\n"
+  "-b cluster selection criteria. Set 'i' for in-cluster, 'io' for in-cluster/out-cluster score. (default i)\n"
+  "-c print only the cluster medians"
   "-v verbose output\n";
 
 #include <stdio.h>
@@ -30,10 +32,10 @@ const char *usage = "wkmeans [options] < input > output\n"
 #if KMEANS_VERBOSE>1
 unsigned int saved_two=0, saved_three_one=0, saved_three_two=0, saved_three_three=0, saved_three_b=0;
 #endif
-
+enum opt_criteria {I=0, IO=1};
 int VERBOSE = 0;
-
-
+enum opt_criteria BEST_SELECT = I;
+int PRINT_CENTERS = 0;
 int main(int argc, char **argv) {
   int nof_clusters = 2;
   int nof_restarts = 0;
@@ -42,13 +44,15 @@ int main(int argc, char **argv) {
   int labels = 0;
   unsigned int seed = 0;
   int opt;
-  while((opt = getopt(argc, argv, "k:r:i:s:lwvh")) != -1) {
+  while((opt = getopt(argc, argv, "k:r:i:s:b:lwvch")) != -1) {
     switch(opt) {
     case 'k': nof_clusters = atoi(optarg); break;
     case 'r': nof_restarts = atoi(optarg); break;
     case 's': seed = atoi(optarg); break;
+    case 'b': BEST_SELECT = strcmp("io", optarg) == 0 ? IO : I; break;
     case 'l': labels = 1; break;
     case 'w': weights = 1; break;
+    case 'c': PRINT_CENTERS = 1; break;
     case 'v': VERBOSE = 1; break;
     default: fputs(usage, stderr); exit(0);
     }
@@ -111,6 +115,8 @@ int main(int argc, char **argv) {
   nof_points = iw;
   
   if (VERBOSE) {
+    if(BEST_SELECT == I) fprintf(stderr, "Select best according to <in-cluster>\n");
+    else fprintf(stderr, "Select best according to <in/out-cluster>\n");
     fprintf(stderr, "Read %d points in %d dimensions%s%s.\n", 
 	    nof_points, dims, 
 	    (labels ? " with labels" : ""),
@@ -120,15 +126,24 @@ int main(int argc, char **argv) {
   assignment = calloc(nof_points, sizeof(unsigned int));
   CX = calloc(dims * nof_clusters, sizeof(PREC));
   PREC rms = kmeans(CX, X, W, assignment, dims, nof_points, nof_clusters, maxiter, nof_restarts);
-
-  for (int i = 0; i < nof_points; i++) {
-    if (labels) {
-      printf("%s\t", L[i]);
-      free(L[i]);
-    }
-    printf("%d\n", assignment[i]);
+  if (PRINT_CENTERS){
+       fprintf(stderr, "Printing %d cluster centers.\n",nof_clusters);
+       for (int i = 0; i < nof_clusters; i++) {
+            for (int j = 0; j < dims; j++) {
+                 printf("%f\t", CX[i * dims + j]);
+            }
+            printf("\n");
+       }
   }
-
+  else{
+       for (int i = 0; i < nof_points; i++) {
+            if (labels) {
+                 printf("%s\t", L[i]);
+                 free(L[i]);
+            }
+            printf("%d\n", assignment[i]);
+       }
+  }
   fprintf(stderr, "%f\n", rms);
 
   free(X);
@@ -256,7 +271,7 @@ PREC compute_distance(const PREC *vec1, const PREC *vec2, const unsigned int dim
 
 PREC compute_rms(const PREC *CX, const PREC *X, const PREC *W, const unsigned int *c, unsigned int dim, unsigned int npts, unsigned int ncls) {
   PREC rms1 = compute_rms1(CX, X, W, c, dim, npts);
-  PREC rms2 = compute_rms2(CX, dim, ncls);
+  PREC rms2 = BEST_SELECT == I ? 1 : compute_rms2(CX, dim, ncls);
   return (rms1 / rms2);
 }
 
