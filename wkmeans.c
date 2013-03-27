@@ -15,7 +15,7 @@ const char *usage = "wkmeans [options] < input > output\n"
   "-s random seed\n"
   "-l input file contains labels\n"
   "-w input file contains instance weights\n"
-  "-c print only the cluster medians"
+  "-c print only the cluster medians\n"
   "-b cluster selection criteria. Set 'i' for in-cluster, 'io' for in-cluster/out-cluster score. (default i)\n"
   "-v verbose output\n";
 
