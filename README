@@ -7,6 +7,23 @@ Usage: wkmeans [options] < input > output
   -l input file contains labels
   -w input file contains instance weights
   -v verbose output
+  
+Input format (assuming you m vectors of n dimensions):
+[label_1] [weight_1] x_11 ... x_1m
+...
+[label_m] [weight_m] x_m1 ... x_mn
+
+label_i  : (string) label of the ith vector, required when -l used.
+weight_i : (double) weight of the ith vector, required when -w used.
+x_ij     : (double) ith vector's magnitude in jth dimension
+
+Output format:
+[label_1] c_1
+...
+[label_m] c_m
+
+c_i : (int) cluster of ith vector
+
 
 Algorithm: wkmeans is a k-means algorithm with (optional) instance
 weights.
