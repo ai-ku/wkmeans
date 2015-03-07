@@ -8,14 +8,14 @@ Usage: wkmeans [options] < input > output
   -w input file contains instance weights
   -v verbose output
   
-Input format (assuming you m vectors of n dimensions):
+Input format (assuming you have m vectors of n dimensions):
 [label_1] [weight_1] x_11 ... x_1m
 ...
 [label_m] [weight_m] x_m1 ... x_mn
 
-label_i  : (string) label of the ith vector, required when -l used.
-weight_i : (double) weight of the ith vector, required when -w used.
-x_ij     : (double) ith vector's magnitude in jth dimension
+label_i  : (string) label of the ith vector, required when -l used
+weight_i : (double) weight of the ith vector, required when -w used
+x_ij     : (double) ith vector's jth component
 
 Output format:
 [label_1] c_1
